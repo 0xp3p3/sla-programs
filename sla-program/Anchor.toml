@@ -1,0 +1,15 @@
+[programs.localnet]
+sla_program = "DMiJ45zEJgZgdZnzxetnuw9aTXbyvdSHP3pgkpL2uQYS"
+
+[programs.devnet]
+sla_program = "DMiJ45zEJgZgdZnzxetnuw9aTXbyvdSHP3pgkpL2uQYS"
+
+[registry]
+url = "https://anchor.projectserum.com"
+
+[provider]
+cluster = "devnet"
+wallet = "/Users/robin/.config/solana/sla-treasury.json"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
