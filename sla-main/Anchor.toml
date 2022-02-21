@@ -1,8 +1,8 @@
 [programs.localnet]
-sla_main = "EzSxPafKqVCRohTEHYtKf7vg1XRxXSv8hxExPwBbkcC2"
+sla_main = "2sochV4HLApPhUPHTYZstZDVdfkxQC1MUyrTVU6TSAxj"
 
 [programs.devnet]
-sla_main = "EzSxPafKqVCRohTEHYtKf7vg1XRxXSv8hxExPwBbkcC2"
+sla_main = "2sochV4HLApPhUPHTYZstZDVdfkxQC1MUyrTVU6TSAxj"
 
 [registry]
 url = "https://anchor.projectserum.com"

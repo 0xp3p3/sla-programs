@@ -20,12 +20,21 @@ pub enum SlaErrors {
   #[msg("The Avatar PDA has already been initialized")]
   AvatarAlreadyInitialized,
 
-  #[msg("The Trait PDA has already been initialized")]
-  TraitAlreadyInitialized,
+  #[msg("The Avatar PDA has not been initialized yet")]
+  AvatarPDANotInitialized,
 
   #[msg("The Trait specified cannot be merged")]
   MergeCheckFailed,
 
   #[msg("The Trait cannot be merged because the Avatar has not been initialized")]
   MergeCheckFailedBecauseAvatarNotInitialized,
+
+  #[msg("The specified arweave_wallet account does not match the stored pubkey")]
+  ArweaveAccountMismatch,
+
+  #[msg("The trait cannot be minted by this avatar")]
+  AvatarCannotMintTrait,
+
+  #[msg("The Whitelist Mint does not match the Trait Type")]
+  InvalidWhitelistMint,
 }

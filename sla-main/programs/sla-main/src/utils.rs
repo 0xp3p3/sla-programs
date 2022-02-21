@@ -1,11 +1,12 @@
 use anchor_lang::prelude::*;
 use anchor_spl;
 
-pub fn check_token_owner(mint: &Pubkey, user: &Pubkey, token_account: &AccountInfo) -> bool {
-  let token_account_pda = anchor_spl::associated_token::get_associated_token_address(user, mint);
+pub fn transfer<'info>(from: AccountInfo<'info>, to: AccountInfo<'info>, lambports: u64) -> Result<(), ProgramError> {
 
-  let exists = token_account_pda == token_account_pda.key();
-  let holds = anchor_spl::token::accessor::amount(&token_account).unwrap() == 1;
+  let instruction = solana_program::system_instruction::transfer(&from.key(), &to.key(), lambports);
 
-  exists && holds
+  solana_program::program::invoke(
+    &instruction,
+    &[from, to]
+  )
 }
