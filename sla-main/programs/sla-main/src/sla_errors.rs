@@ -37,4 +37,7 @@ pub enum SlaErrors {
 
   #[msg("The Whitelist Mint does not match the Trait Type")]
   InvalidWhitelistMint,
+
+  #[msg("Hay cannot be minted at this time")]
+  HayCannotBeMinted,
 }

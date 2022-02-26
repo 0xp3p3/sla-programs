@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use solana_program::program::invoke_signed;
 use mpl_token_metadata::{instruction::update_metadata_accounts_v2, ID, state};
 
-use crate::SLA_PDA_SEED;
+use crate::SLA_MASTER_SEED;
 
 pub fn update_metadata<'info>(
   metadata_account: AccountInfo<'info>, 
@@ -42,6 +42,6 @@ pub fn update_metadata<'info>(
   invoke_signed(
     &instruction,
     accounts,
-    &[&[SLA_PDA_SEED.as_bytes(), &[master_bump]]],
+    &[&[SLA_MASTER_SEED.as_bytes(), &[master_bump]]],
   )
 }

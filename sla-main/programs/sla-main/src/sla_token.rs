@@ -1,7 +1,31 @@
 use anchor_lang::prelude::*;
 use anchor_spl;
 
-use crate::SLA_PDA_SEED;
+use crate::{SLA_TREASURY_SEED, SLA_MASTER_SEED};
+
+
+/// Mint a Hay token to a user's wallet. 
+/// The SLA Treasury PDA signs and pays the transaction fees. 
+pub fn mint_hay<'info> (
+  mint: AccountInfo<'info>,
+  to: AccountInfo<'info>,
+  treasury: AccountInfo<'info>,
+  token_program: AccountInfo<'info>,
+  treasury_bump: u8,
+) -> ProgramResult {
+
+  let signer_seeds = &[&[SLA_TREASURY_SEED.as_bytes(), bytemuck::bytes_of(&treasury_bump)][..]];
+
+  let cpi_accounts = anchor_spl::token::MintTo {
+    mint: mint, 
+    to: to,
+    authority: treasury,
+  };
+
+  let cpi_ctx = CpiContext::new_with_signer(token_program, cpi_accounts, signer_seeds);
+
+  anchor_spl::token::mint_to(cpi_ctx, 1)
+}
 
 
 pub fn mint_whitelist_token<'info>(
@@ -12,7 +36,7 @@ pub fn mint_whitelist_token<'info>(
   master_bump: u8,
 ) -> ProgramResult {
 
-  let signer_seeds = &[&[SLA_PDA_SEED.as_bytes(), bytemuck::bytes_of(&master_bump)][..]];
+  let signer_seeds = &[&[SLA_MASTER_SEED.as_bytes(), bytemuck::bytes_of(&master_bump)][..]];
 
   // Mint a new Whitelist Token
   let cpi_accounts = anchor_spl::token::MintTo {

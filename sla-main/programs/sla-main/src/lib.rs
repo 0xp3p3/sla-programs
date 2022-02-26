@@ -1,5 +1,5 @@
 use anchor_lang::{prelude::*};
-use anchor_spl::{token, associated_token, mint};
+use anchor_spl::{token, associated_token};
 use mpl_token_metadata;
 
 mod sla_accounts;
@@ -8,47 +8,73 @@ mod utils;
 mod sla_metadata;
 mod sla_token;
 mod sla_whitelist;
+mod sla_hay;
 
 use sla_errors::SlaErrors;
 
 declare_id!("2sochV4HLApPhUPHTYZstZDVdfkxQC1MUyrTVU6TSAxj");
 
 // const ARWEAVE_WALLET: &[u8] = b"JDpq9RP9zUdVShvwwp2DK8orxU8e73SDMsQiYnsK87ga";
-const SLA_PDA_SEED: &str = "sla_main";
+const SLA_MASTER_SEED: &str = "sla_master";
+const SLA_LLAMA_SEED: &str = "sla_llama";
+const SLA_TREASURY_SEED: &str = "sla_treasury";
 
 #[program]
 pub mod sla_main {
     use super::*;
 
-    pub fn mint_trait_whitelist_token(
-      ctx: Context<MintTraitWhitelistToken>, 
-      avatar_bump: u8, 
-      master_bump: u8,
-      trait_id: u8
+    pub fn mint_hay(
+      ctx: Context<MintHay>,
+      treasury_bump: u8,
+      llama_bump: u8,
     ) -> ProgramResult {
-      
-      // Initialize the Avatar account if needed
-      let avatar = &mut ctx.accounts.avatar;
-      match avatar.traits {
-        Some(_) => (),
-        None => avatar.init()?
-      };
 
-      // Update the Avatar account and check that the user is indeed allowed
-      // to mint this trait
-      avatar.mint_trait(trait_id)?;
+      let llama = &mut ctx.accounts.llama;
 
-      // Give the user a Whitelist Token
-      sla_token::mint_whitelist_token(
-        ctx.accounts.whitelist_mint.to_account_info(),
-        ctx.accounts.whitelist_token.to_account_info(),
-        ctx.accounts.sla_master_pda.to_account_info(),
+      // Check if this Llama is allowed to mint Hay at this time of day,
+      llama.mint_hay(ctx.accounts.clock.unix_timestamp)?;
+
+      // Mint some Hay
+      sla_token::mint_hay(
+        ctx.accounts.hay_mint.to_account_info(),
+        ctx.accounts.hay_token.to_account_info(),
+        ctx.accounts.treasury.to_account_info(),
         ctx.accounts.token_program.to_account_info(),
-        master_bump
+        treasury_bump
       )?;
 
       Ok(())
     }
+
+    // pub fn mint_trait_whitelist_token(
+    //   ctx: Context<MintTraitWhitelistToken>, 
+    //   avatar_bump: u8, 
+    //   master_bump: u8,
+    //   trait_id: u8
+    // ) -> ProgramResult {
+      
+    //   // Initialize the Avatar account if needed
+    //   let avatar = &mut ctx.accounts.avatar;
+    //   match avatar.traits {
+    //     Some(_) => (),
+    //     None => avatar.init()?
+    //   };
+
+    //   // Update the Avatar account and check that the user is indeed allowed
+    //   // to mint this trait
+    //   avatar.mint_trait(trait_id)?;
+
+    //   // Give the user a Whitelist Token
+    //   sla_token::mint_whitelist_token(
+    //     ctx.accounts.whitelist_mint.to_account_info(),
+    //     ctx.accounts.whitelist_token.to_account_info(),
+    //     ctx.accounts.sla_master_pda.to_account_info(),
+    //     ctx.accounts.token_program.to_account_info(),
+    //     master_bump
+    //   )?;
+
+    //   Ok(())
+    // }
 
     // Check whether a given Trait NFT can be merged with the specified Avatar NFT
     pub fn check_merge_is_allowed(
@@ -115,59 +141,114 @@ pub mod sla_main {
     }
 }
 
-
 #[derive(Accounts)]
-#[instruction(avatar_bump: u8, master_bump: u8, trait_id: u8)]
-pub struct MintTraitWhitelistToken<'info> {
+#[instruction(treasury_bump: u8, llama_bump: u8)]
+pub struct MintHay<'info> {
+  #[account(mut)]
+  pub hay_mint: Account<'info, token::Mint>,
+  pub llama_mint: Account<'info, token::Mint>,
+
   #[account(
     init_if_needed,
-    seeds = [SLA_PDA_SEED.as_bytes(), &avatar_mint.key().to_bytes()],
-    bump = avatar_bump,
-    payer = payer,
+    payer = fee_payer,
+    associated_token::mint = hay_mint,
+    associated_token::authority = user,
+  )]
+  pub hay_token: Account<'info, token::TokenAccount>,
+
+  #[account(
+    associated_token::mint = llama_mint,
+    associated_token::authority = user,
+  )]
+  pub llama_token: Account<'info, token::TokenAccount>,
+
+  // This is the PDA associated with the Llama NFT
+  #[account(
+    init_if_needed,
+    seeds = [SLA_LLAMA_SEED.as_bytes(), &llama_mint.key().to_bytes()],
+    bump = llama_bump,
+    payer = fee_payer,
     space = sla_accounts::AvatarAccount::LEN,
   )]
-  pub avatar: Account<'info, sla_accounts::AvatarAccount>,
+  pub llama: Account<'info, sla_accounts::AvatarAccount>,
 
-  pub avatar_mint: Account<'info, token::Mint>,
+  // This is the person owning the Llama NFT to whom we are airdropping 
+  // a Hay token
+  pub user: AccountInfo<'info>,
 
-  #[account(
-    associated_token::mint = avatar_mint,
-    associated_token::authority = payer,
-  )]
-  pub avatar_token: Account<'info, token::TokenAccount>,
-
+  // This is the SLA Treasury PDA
   #[account(
     init_if_needed,
-    seeds = [SLA_PDA_SEED.as_bytes()],
-    bump = master_bump,
-    payer = payer,
+    seeds = [SLA_TREASURY_SEED.as_bytes()],
+    bump = treasury_bump,
     space = 8,
+    payer = fee_payer,
   )]
-  pub sla_master_pda: AccountInfo<'info>,
-
-  #[account(
-    init_if_needed,
-    payer = payer,
-    associated_token::mint = whitelist_mint,
-    associated_token::authority = payer,
-  )]
-  pub whitelist_token: Account<'info, token::TokenAccount>,
-
-  #[account(
-    mut,
-    constraint = sla_whitelist::check_whitelist_mint_id(&whitelist_mint.key(), trait_id) 
-      @ SlaErrors::InvalidWhitelistMint,
-  )]
-  pub whitelist_mint: Account<'info, token::Mint>,
+  pub treasury: AccountInfo<'info>,
 
   #[account(mut)]
-  pub payer: Signer<'info>,
+  pub fee_payer: Signer<'info>,
 
-  pub token_program: Program<'info, token::Token>,
-  pub system_program: Program<'info, System>,
   pub rent: Sysvar<'info, Rent>,
+  pub clock: Sysvar<'info, Clock>,
+  pub token_program: Program<'info, token::Token>,
   pub associated_token_program: Program<'info, associated_token::AssociatedToken>,
+  pub system_program: Program<'info, System>,
 }
+
+
+// #[derive(Accounts)]
+// #[instruction(avatar_bump: u8, master_bump: u8, trait_id: u8)]
+// pub struct MintTraitWhitelistToken<'info> {
+//   #[account(
+//     init_if_needed,
+//     seeds = [SLA_LLAMA_SEED.as_bytes(), &avatar_mint.key().to_bytes()],
+//     bump = avatar_bump,
+//     payer = payer,
+//     space = sla_accounts::AvatarAccount::LEN,
+//   )]
+//   pub avatar: Account<'info, sla_accounts::AvatarAccount>,
+
+//   pub avatar_mint: Account<'info, token::Mint>,
+
+//   #[account(
+//     associated_token::mint = avatar_mint,
+//     associated_token::authority = payer,
+//   )]
+//   pub avatar_token: Account<'info, token::TokenAccount>,
+
+//   #[account(
+//     init_if_needed,
+//     seeds = [SLA_LLAMA_SEED.as_bytes()],
+//     bump = master_bump,
+//     payer = payer,
+//     space = 8,
+//   )]
+//   pub sla_master_pda: AccountInfo<'info>,
+
+//   #[account(
+//     init_if_needed,
+//     payer = payer,
+//     associated_token::mint = whitelist_mint,
+//     associated_token::authority = payer,
+//   )]
+//   pub whitelist_token: Account<'info, token::TokenAccount>,
+
+//   #[account(
+//     mut,
+//     constraint = sla_whitelist::check_whitelist_mint_id(&whitelist_mint.key(), trait_id) 
+//       @ SlaErrors::InvalidWhitelistMint,
+//   )]
+//   pub whitelist_mint: Account<'info, token::Mint>,
+
+//   #[account(mut)]
+//   pub payer: Signer<'info>,
+
+//   pub token_program: Program<'info, token::Token>,
+//   pub system_program: Program<'info, System>,
+//   pub rent: Sysvar<'info, Rent>,
+//   pub associated_token_program: Program<'info, associated_token::AssociatedToken>,
+// }
 
 
 #[derive(Accounts)]
@@ -175,7 +256,7 @@ pub struct MintTraitWhitelistToken<'info> {
 pub struct CheckMergeIsAllowed<'info> {
   #[account(
     init_if_needed,
-    seeds = [SLA_PDA_SEED.as_bytes(), &avatar_mint.key().to_bytes()],
+    seeds = [SLA_LLAMA_SEED.as_bytes(), &avatar_mint.key().to_bytes()],
     bump = avatar_bump,
     payer = payer, 
     space = sla_accounts::AvatarAccount::LEN,
@@ -208,7 +289,7 @@ pub struct CheckMergeIsAllowed<'info> {
 pub struct Merge<'info> {
   #[account(
     mut,
-    seeds = [SLA_PDA_SEED.as_bytes(), &avatar_mint.key().to_bytes()],
+    seeds = [SLA_LLAMA_SEED.as_bytes(), &avatar_mint.key().to_bytes()],
     bump = avatar_bump,
   )]
   pub avatar: Account<'info, sla_accounts::AvatarAccount>,
@@ -238,7 +319,7 @@ pub struct Merge<'info> {
   pub avatar_metadata: AccountInfo<'info>,
 
   #[account(
-    seeds = [SLA_PDA_SEED.as_bytes()],
+    seeds = [SLA_MASTER_SEED.as_bytes()],
     bump = master_bump,
   )]
   pub sla_master_pda: AccountInfo<'info>,
