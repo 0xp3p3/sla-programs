@@ -2,6 +2,9 @@ use anchor_lang::prelude::*;
 
 #[error]
 pub enum SlaErrors {
+  #[msg("The creator pubkey is not valid")]
+  InvalidCreatorPubkey,
+
   #[msg("The user account is not owner of the Mint")]
   UserDoesNotOwnMint,
 
@@ -37,4 +40,7 @@ pub enum SlaErrors {
 
   #[msg("The Whitelist Mint does not match the Trait Type")]
   InvalidWhitelistMint,
+
+  #[msg("Hay cannot be minted at this time")]
+  HayCannotBeMinted,
 }

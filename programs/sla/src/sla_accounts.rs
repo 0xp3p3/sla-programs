@@ -1,4 +1,6 @@
 use anchor_lang::prelude::*;
+
+use crate::sla_hay;
 use crate::SlaErrors;
 
 const DISCRIMINATOR_LENGTH: usize = 8;
@@ -7,6 +9,7 @@ const DISCRIMINATOR_LENGTH: usize = 8;
 #[derive(Copy, Default)]
 pub struct AvatarAccount {
   pub traits: Option<AvatarData>,
+  pub last_hay_mint: i64,
 }
 
 impl AvatarAccount {
@@ -19,6 +22,15 @@ impl AvatarAccount {
         Ok(())
       }
       Some(_) => Err(SlaErrors::AvatarAlreadyInitialized),
+    }
+  }
+
+  pub fn mint_hay(&mut self, timestamp: i64) -> Result<(), SlaErrors> {
+    if sla_hay::can_hay_be_minted(timestamp, self.last_hay_mint) {
+      self.last_hay_mint = timestamp;
+      Ok(())
+    } else {
+      Err(SlaErrors::HayCannotBeMinted)
     }
   }
 

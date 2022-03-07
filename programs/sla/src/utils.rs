@@ -10,3 +10,11 @@ pub fn transfer<'info>(from: AccountInfo<'info>, to: AccountInfo<'info>, lambpor
     &[from, to]
   )
 }
+
+pub fn verify_avatar<'info>(
+  mint: AccountInfo<'info>,
+  ata: AccountInfo<'info>,
+) -> Result<(), ProgramError> {
+
+  Ok(())
+}
