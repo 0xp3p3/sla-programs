@@ -1,0 +1,15 @@
+[provider]
+cluster = "devnet"
+wallet = "/Users/robin/dev/personal/solana/SLA/sla-config/.sol-wallets/program-authority.json"
+
+[programs.localnet]
+sla = "FX4vcKmc35gcU5hhqLQ9g5x7yHNY76Fve9yMHQU3uGLY"
+
+[programs.devnet]
+sla = "FX4vcKmc35gcU5hhqLQ9g5x7yHNY76Fve9yMHQU3uGLY"
+
+[programs.mainnet]
+sla = "FX4vcKmc35gcU5hhqLQ9g5x7yHNY76Fve9yMHQU3uGLY"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
