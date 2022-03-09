@@ -133,3 +133,15 @@ pub fn update_metadata<'info>(
     &[&[PREFIX_MASTER.as_bytes(), &[master_bump]]],
   )
 }
+
+pub fn check_verified_creator(
+  metaadata: mpl_token_metadata::state::Metadata,
+  expected: &Pubkey,
+) -> bool {
+  match &metaadata.data.creators {
+    Some(creators) => {
+      creators.iter().any(|c| c.verified && c.address == *expected)
+    },
+    None => false,
+  }
+}

@@ -43,3 +43,15 @@ pub fn verify_collection<'info>(
 
   Ok(())
 }
+
+pub fn check_collection(
+  collection_member: mpl_token_metadata::state::Metadata,
+  expected: &Pubkey,
+) -> bool {
+  match &collection_member.collection {
+    Some(collection) => {
+      collection.key == *expected && collection.verified
+    },
+    None => false,
+  }
+}

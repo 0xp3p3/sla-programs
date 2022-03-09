@@ -67,7 +67,7 @@ pub fn mint_tokens<'info>(
 
 /// Mint a Hay token to a user's wallet. 
 /// The SLA Treasury PDA signs and pays the transaction fees. 
-pub fn mint_hay<'info> (
+pub fn deprecated_mint_hay<'info> (
   mint: AccountInfo<'info>,
   to: AccountInfo<'info>,
   treasury: AccountInfo<'info>,
@@ -86,6 +86,30 @@ pub fn mint_hay<'info> (
   let cpi_ctx = CpiContext::new_with_signer(token_program, cpi_accounts, signer_seeds);
 
   anchor_spl::token::mint_to(cpi_ctx, 1)
+}
+
+
+pub fn burn_tokens<'info>(
+  mint: AccountInfo<'info>,
+  ata: AccountInfo<'info>,
+  authority: AccountInfo<'info>,
+  token_program: AccountInfo<'info>,
+  signer_seeds: Option<&[&[&[u8]]]>,
+  amount: u64,
+) -> ProgramResult {
+
+  let accounts = anchor_spl::token::Burn {
+    mint: mint,
+    to: ata,
+    authority: authority,
+  };
+
+  let cpi_ctx = match signer_seeds {
+    Some(seeds) => CpiContext::new_with_signer(token_program, accounts, seeds),
+    None => CpiContext::new(token_program, accounts),
+  };
+
+  anchor_spl::token::burn(cpi_ctx, amount)
 }
 
 
@@ -125,4 +149,3 @@ pub fn burn_trait<'info>(
   let cpi_ctx = CpiContext::new(token_program, cpi_accounts);
   anchor_spl::token::burn(cpi_ctx, 1)
 }
-

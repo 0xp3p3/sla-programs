@@ -1,9 +1,38 @@
-use anchor_lang::{prelude::*};
 
 // PDA SEEDS
 pub const PREFIX_MASTER: &str = "sla_master";
 pub const PREFIX_LLAMA: &str = "sla_llama";
 pub const PREFIX_TREASURY: &str = "sla_treasury";
 
+// PRICES
+pub const PRICE_ID_CARD: u64 = 30;
+pub const PRICE_BADGE_BRONZE: u64 = 30;
+pub const PRICE_BADGE_SILVER: u64 = 60;
+pub const PRICE_BADGE_GOLD: u64 = 90;
+pub const PRICE_BADGE_PLATINUM: u64 = 180;
+pub const PRICE_BADGE_DIAMOND: u64 = 365;
+
 // WALLET PUBKEYS
-pub const ID_BADGES_CREATOR_WALLET: &str = "CmnRqeMKgWzk8xJWDVUPmcKqp2N9MQrY1zaKDRfQDRMj";
+pub const COLLECTIONS_CREATOR_WALLET: &str = "5JTEZn8o81DgXbPMPJmNuMBYASsE1e8HHBqnCVnZqgnR";
+pub const HAY_TREASURY_WALLET: &str = "GYoijtAH31pDLNGz4UYCf5aRGe92iwx7BWv2CZtwUKDC";
+
+
+/*** DEVNET ***/
+
+// HAY TOKEN
+pub const HAY_TOKEN_MINT: &str = "9Fs3fxYZy6U7x4VyoFL7pvaTbHKUNqbq2ikyFS4J3rVN";
+
+// HARD-CODED COLLECTION KEYS
+pub const LLAMA_COLLECTION: &str = "nmE2Yj5eYscWnayvcRFCN8WQbEAB5dHgrsZDJ3oABsz";
+
+// HARD-CODED MASTER EDITION KEYS
+pub const MASTER_EDITION_ID_CARD: &str = "9MtvCbfRYzEWyU9UNkebR8VA7F5cWwLP6tPPVciPgUca";
+
+pub const MASTER_EDITION_BADGE_BRONZE: &str = "5Xd6D8vPZu9TQ3rdPWZ8cfgbDYGH1UUa7VYba9RH2rXz";
+pub const MASTER_EDITION_BADGE_SILVER: &str = "UKRc55j2KtyrHRPwivzQQPPkS31u53nBF7bARb8xGqp";
+pub const MASTER_EDITION_BADGE_GOLD: &str = "CCCaxot6ht5UV7EgjDCNcW7G6waVMDLwxZPTTVnMUCxK";
+pub const MASTER_EDITION_BADGE_PLATINUM: &str = "CH13SPJnhSFhA25LPtgyR7d3fo8Pj7WTbxhk33PtpMiA";
+pub const MASTER_EDITION_BADGE_DIAMOND: &str = "EADpBpXvVeBXA926wSSQCWybzHYWeCCXHCWxDp7dFNj8";
+
+
+/*** MAINNET ***/
