@@ -5,6 +5,10 @@ pub enum SlaErrors {
   #[msg("The creator pubkey is not valid")]
   InvalidCreatorPubkey,
 
+  /*** GENERAL ERRROS ***/
+  
+  #[msg("Invalid hard-coded pubkey")]
+  InvalidPubkey,
 
   /*** CHECK AVATAR OWNERSHIP ***/
 
@@ -26,7 +30,14 @@ pub enum SlaErrors {
   #[msg("Candy machine creator is not valid or unverified")]
   CreatorInvalid,
 
-  //**************
+  /*** CHECK TRAIT OWNERSHIP ***/
+
+  #[msg("Trait is not part of a verified collection")]
+  TraitNotInVerifiedCollection,
+
+  #[msg("Trait is not part of any trait collection")]
+  TraitCollectionUnknown,
+
 
   /*** HAY-RELATED ERRORS  ***/
 
@@ -39,6 +50,9 @@ pub enum SlaErrors {
 
   #[msg("Master Edition not recognised")]
   MasterEditionNotRecognised,
+
+  #[msg("Token to be minted not recognised")]
+  TokenToMintNotRecognised,
 
   //**************
 

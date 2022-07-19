@@ -1,27 +1,22 @@
 use anchor_lang::{prelude::*};
 use anchor_spl;
 use mpl_token_metadata;
-use solana_program;
-use solana_program::program::{invoke_signed, invoke};
 
 mod sla_accounts;
 mod sla_errors;
 mod utils;
 mod sla_metadata;
 mod sla_token;
-mod sla_whitelist;
-mod sla_hay;
 mod sla_edition;
 mod sla_constants;
 mod sla_collection;
-mod sla_pay;
+mod sla_fungible_token;
 
 use sla_errors::SlaErrors;
-use utils::{assert_address, verify_avatar};
+use utils::{assert_address, verify_avatar, verify_trait};
 
-declare_id!("FX4vcKmc35gcU5hhqLQ9g5x7yHNY76Fve9yMHQU3uGLY");
+declare_id!("GUSxqUfUdqchfErA3DrW1jNVJKGdMpxt71AeDkJJtG5R");
 
-// const ARWEAVE_WALLET: &[u8] = b"JDpq9RP9zUdVShvwwp2DK8orxU8e73SDMsQiYnsK87ga";
 
 #[program]
 pub mod sla {
@@ -54,6 +49,7 @@ pub mod sla {
         mint.clone(),
         treasury.clone(),
         creator.clone(),
+        utils::str_to_pubkey(sla_constants::COMMUNITY_WALLET),
         name,
         symbol,
         uri, 
@@ -72,7 +68,7 @@ pub mod sla {
         ata,
         creator.clone(),  // current ATA account owner
         treasury.clone(),  // mint authority
-        treasury.clone(),  // final ATA account owner
+        treasury.key(),  // final ATA account owner
         token_program.clone(),
         treasury_bump
       )?;
@@ -135,6 +131,7 @@ pub mod sla {
         mint.clone(),
         treasury.clone(),
         creator.clone(),
+        utils::str_to_pubkey(sla_constants::COMMUNITY_WALLET),
         name,
         symbol,
         uri, 
@@ -153,7 +150,7 @@ pub mod sla {
         ata,
         creator.clone(),  // current ATA account owner
         treasury.clone(),  // mint authority
-        treasury.clone(),  // final ATA account owner
+        treasury.key(),  // final ATA account owner
         token_program.clone(),
         treasury_bump
       )?;
@@ -189,218 +186,229 @@ pub mod sla {
       Ok(())
     }
 
-    pub fn mint_edition(
-      ctx: Context<MintEdition>,
-      treasury_bump: u8,
-      edition_number: u64,
-    ) -> ProgramResult {
-
-      let new_metadata = ctx.accounts.new_metadata.to_account_info();
-      let new_edition = ctx.accounts.new_edition.to_account_info();
-      let new_mint = ctx.accounts.new_mint.to_account_info();
-      let new_ata = ctx.accounts.new_ata.to_account_info();
-      let edition_marker = ctx.accounts.edition_marker.to_account_info();
-      let master_edition = ctx.accounts.master_edition.to_account_info();
-      let master_metadata = ctx.accounts.master_metadata.to_account_info();
-      let master_mint = ctx.accounts.master_mint.to_account_info();
-      let master_ata = ctx.accounts.master_ata.to_account_info();
-      let user = ctx.accounts.user.to_account_info();
-      let treasury = ctx.accounts.treasury.to_account_info();
-      let system_program = ctx.accounts.system_program.to_account_info();
-      let rent_sysvar = ctx.accounts.rent.to_account_info();
-      let token_program = ctx.accounts.token_program.to_account_info();
-
-      // $HAY-related accounts
-      let hay_mint = ctx.accounts.hay_mint.to_account_info();
-      let hay_user_ata = ctx.accounts.hay_user_ata.to_account_info();
-
-      // Check that the Llama belongs to our collection
-      let llama_mint = ctx.accounts.llama_mint.key();
-      let llama_ata = ctx.accounts.llama_ata.clone();
-      let llama_metadata = ctx.accounts.llama_metadata.to_account_info();
-      verify_avatar(llama_mint, llama_ata, user.key(), &llama_metadata)?;
-
-      // Mint a single Token from the new mint 
-      sla_token::mint_edition_unique_token(
-        new_mint.clone(), 
-        new_ata, 
-        user.clone(),  // ATA account owner
-        treasury.clone(),  // mint authority
-        user.clone(),  // final ATA account owner
-        token_program.clone(),
-        treasury_bump
-      )?;
-
-      // Mint the new Edition
-      sla_edition::mint_edition_from_master_edition(
-        new_metadata.clone(),
-        new_edition,
-        master_edition,
-        new_mint,
-        edition_marker,
-        treasury.clone(),
-        user.clone(),
-        master_ata,
-        master_metadata,
-        master_mint.clone(),
-        token_program.clone(),
-        system_program,
-        rent_sysvar,
-        edition_number,
-        treasury_bump
-      )?;
-
-      // Set `primary_sale_happened` to True
-      sla_metadata::set_primary_sale_happened(
-        new_metadata,  // metadata account to update
-        treasury,  // update authority
-        treasury_bump
-      )?;
-
-      // Pay for the new edition
-      sla_pay::pay_for_edition_mint(
-        master_mint.key,
-        hay_mint,
-        hay_user_ata,
-        user,
-        token_program,
-      )?;
-
-      Ok(())
-    }
-
-    pub fn mint_unlimited_hay(
-      ctx: Context<MintHayUnlimited>,
-      treasury_bump: u8,
-      amount: u64,
-    ) -> ProgramResult {
-
-      let signer_seeds = &[&[sla_constants::PREFIX_TREASURY.as_bytes(), bytemuck::bytes_of(&treasury_bump)][..]];
-
-      // Mint $HAY
-      sla_token::mint_tokens(
-        ctx.accounts.hay_mint.to_account_info(),
-        ctx.accounts.hay_ata.to_account_info(),
-        ctx.accounts.treasury.to_account_info(),
-        ctx.accounts.token_program.to_account_info(),
-        Some(signer_seeds),
-        amount,
-      )
-    }
-
-    pub fn mint_hay(
-      ctx: Context<MintHay>,
-      treasury_bump: u8,
-      llama_bump: u8,
-    ) -> ProgramResult {
-
-      let llama = &mut ctx.accounts.llama;
-
-      // Check if this Llama is allowed to mint Hay at this time of day,
-      llama.mint_hay(ctx.accounts.clock.unix_timestamp)?;
-
-      // Mint some Hay
-      sla_token::deprecated_mint_hay(
-        ctx.accounts.hay_mint.to_account_info(),
-        ctx.accounts.hay_ata.to_account_info(),
-        ctx.accounts.treasury.to_account_info(),
-        ctx.accounts.token_program.to_account_info(),
-        treasury_bump
-      )?;
-
-      Ok(())
-    }
-
-    // pub fn mint_trait_whitelist_token(
-    //   ctx: Context<MintTraitWhitelistToken>, 
-    //   avatar_bump: u8, 
-    //   master_bump: u8,
-    //   trait_id: u8
+    // pub fn mint_edition(
+    //   ctx: Context<MintEdition>,
+    //   master_mint: Pubkey,
+    //   treasury_bump: u8,
+    //   edition_number: u64,
+    //   edition_type: u8,
     // ) -> ProgramResult {
-      
-    //   // Initialize the Avatar account if needed
-    //   let avatar = &mut ctx.accounts.avatar;
-    //   match avatar.traits {
-    //     Some(_) => (),
-    //     None => avatar.init()?
-    //   };
 
-    //   // Update the Avatar account and check that the user is indeed allowed
-    //   // to mint this trait
-    //   avatar.mint_trait(trait_id)?;
+    //   // Check the addresses given are correct
+    //   // assert!(assert_address(&ctx.accounts.hay_mint.key(), sla_constants::HAY_TOKEN_MINT));
+    //   assert!(assert_address(ctx.accounts.hay_treasury_ata.key, sla_constants::HAY_TREASURY_WALLET_ATA));
 
-    //   // Give the user a Whitelist Token
-    //   sla_token::mint_whitelist_token(
-    //     ctx.accounts.whitelist_mint.to_account_info(),
-    //     ctx.accounts.whitelist_token.to_account_info(),
-    //     ctx.accounts.sla_master_pda.to_account_info(),
+    //   let user = ctx.accounts.user.to_account_info();
+    //   let treasury = ctx.accounts.treasury.to_account_info();
+
+    //   // Mint a single Token from the new mint 
+    //   sla_token::mint_edition_unique_token(
+    //     ctx.accounts.new_mint.to_account_info().clone(), 
+    //     ctx.accounts.new_ata.to_account_info(), 
+    //     user.clone(),  // ATA account owner
+    //     treasury.clone(),  // mint authority
+    //     user.key(),  // final ATA account owner
+    //     ctx.accounts.token_program.to_account_info().clone(),
+    //     treasury_bump
+    //   )?;
+
+    //   // Mint the new Edition
+    //   sla_edition::mint_edition_from_master_edition(
+    //     ctx.accounts.new_metadata.to_account_info().clone(),
+    //     ctx.accounts.new_edition.to_account_info(),
+    //     ctx.accounts.master_edition.to_account_info(),
+    //     ctx.accounts.new_mint.to_account_info(),
+    //     ctx.accounts.edition_marker.to_account_info(),
+    //     treasury.clone(),
+    //     user.clone(),
+    //     ctx.accounts.master_ata.to_account_info(),
+    //     ctx.accounts.master_metadata.to_account_info(),
+    //     master_mint,
+    //     ctx.accounts.token_program.to_account_info().clone(),
+    //     ctx.accounts.system_program.to_account_info(),
+    //     ctx.accounts.rent.to_account_info(),
+    //     edition_number,
+    //     treasury_bump
+    //   )?;
+
+    //   // Set `primary_sale_happened` to True
+    //   sla_metadata::set_primary_sale_happened(
+    //     ctx.accounts.new_metadata.to_account_info(),  // metadata account to update
+    //     treasury,  // update authority
+    //     treasury_bump
+    //   )?;
+
+    //   // Pay for the new edition
+    //   sla_pay::pay_for_edition_mint(
+    //     &master_mint,
+    //     ctx.accounts.hay_user_ata.to_account_info(),
+    //     ctx.accounts.hay_treasury_ata.to_account_info(),
+    //     user,
     //     ctx.accounts.token_program.to_account_info(),
-    //     master_bump
+    //     edition_type,
     //   )?;
 
     //   Ok(())
     // }
 
-    // Check whether a given Trait NFT can be merged with the specified Avatar NFT
-    pub fn check_merge_is_allowed(
-      ctx: Context<CheckMergeIsAllowed>, 
-      avatar_bump: u8,
-      new_trait_id: u8
-    ) -> ProgramResult {
-    
-      // Initialize the Avatar account if needed
-      let avatar = &mut ctx.accounts.avatar;
-      match avatar.traits {
-        Some(_) => (),
-        None => avatar.init()?
-      };
-    
-      // Check if the Avatar can still merge this trait
-      avatar.check_merge_is_allowed(new_trait_id)?;
-      Ok(())
-    }
+    // pub fn mint_unlimited_hay(
+    //   ctx: Context<MintHayUnlimited>,
+    //   treasury_bump: u8,
+    //   amount: u64,
+    // ) -> ProgramResult {
+
+    //   let signer_seeds = &[&[sla_constants::PREFIX_TREASURY.as_bytes(), bytemuck::bytes_of(&treasury_bump)][..]];
+
+    //   // Mint $HAY
+    //   sla_token::mint_tokens(
+    //     ctx.accounts.hay_mint.to_account_info(),
+    //     ctx.accounts.hay_ata.to_account_info(),
+    //     ctx.accounts.treasury.to_account_info(),
+    //     ctx.accounts.token_program.to_account_info(),
+    //     Some(signer_seeds),
+    //     amount,
+    //   )
+    // }
 
     pub fn merge(
       ctx: Context<Merge>,
-      master_bump: u8,
       avatar_bump: u8,
-      new_trait_id: u8,
       metadata_uri: String,
-      upload_cost: u64,
     ) -> ProgramResult {
 
       let avatar = &mut ctx.accounts.avatar;
-      let metadata_account = ctx.accounts.avatar_metadata.to_account_info();
-      let sla_master_pda = ctx.accounts.sla_master_pda.to_account_info();
+      let avatar_metadata = ctx.accounts.avatar_metadata.to_account_info();
+      let trait_metadata = ctx.accounts.trait_metadata.to_account_info();
       let metadata_program = ctx.accounts.metadata_program.to_account_info();
       let payer = ctx.accounts.payer.to_account_info();
+      let combine_authority = ctx.accounts.combine_authority.to_account_info();
+
+      let trait_ata = ctx.accounts.trait_token.to_account_info();
+      let trait_mint = ctx.accounts.trait_mint.to_account_info();
+
+      // Verify that the avatar belongs to the SLA collection
+      msg!("Verifying agent belongs to the right collection");
+      verify_avatar(
+        ctx.accounts.avatar_mint.key(),
+        ctx.accounts.avatar_token.clone(),
+        payer.key(),
+        &avatar_metadata,
+      )?;
+
+      // Verify that the trait belongs to the SLA collection + extract the trait ID
+      msg!("Verifying trait belongs to the right collection");
+      let trait_id = verify_trait(
+        trait_mint.key(),
+        ctx.accounts.trait_token.clone(),
+        payer.key(),
+        &trait_metadata,
+      )?;
+
+      // Initialize the Avatar account if needed
+      msg!("Initializing agent PDA if needed");
+      match avatar.traits {
+        Some(_) => (),
+        None => avatar.init()?,
+      };
 
       // Update the SLA Avatar data (while checking whether the merge is allowed)
-      avatar.merge(new_trait_id)?;
+      msg!("Updating agent PDA");
+      avatar.merge(trait_id)?;
 
       // Update the metadata URI through the Metaplex program
+      msg!("Updating agent metadata with new URI");
       sla_metadata::update_metadata(
-        metadata_account, 
-        sla_master_pda, 
+        avatar_metadata, 
+        combine_authority,
         metadata_program,
-        master_bump,
         metadata_uri,
+        None,
       )?;
 
       // Burn the trait token
+      msg!("Burning trait token");
       sla_token::burn_trait(
-        ctx.accounts.trait_token.to_account_info(), 
-        ctx.accounts.trait_mint.to_account_info(), 
-        payer.clone().to_account_info(), 
+        trait_ata, 
+        trait_mint, 
+        payer.clone(), 
         ctx.accounts.token_program.to_account_info()
       )?;
 
-      // Reimburse the wallet Arweave uploader
-      utils::transfer(
-        payer.clone().to_account_info(),
-        ctx.accounts.arweave_wallet.to_account_info(), 
-        upload_cost
+      msg!("Instruction finished");
+
+      Ok(())
+    }
+
+
+    pub fn mint_fungible_asset(ctx: Context<MintFungibleAsset>, treasury_bump: u8, asset_id: u8) -> ProgramResult {
+      msg!("Entering the MintFungibleAsset instruction");
+
+      let mint = ctx.accounts.mint.to_account_info();
+      let ata = ctx.accounts.ata.to_account_info();
+      let treasury = ctx.accounts.treasury.to_account_info();
+      let token_program = ctx.accounts.token_program.to_account_info();
+
+      let signer_seeds = &[&[sla_constants::PREFIX_TREASURY.as_bytes(), bytemuck::bytes_of(&treasury_bump)][..]];
+      
+      let fungible_asset = sla_fungible_token::FungibleAsset::from_u8(asset_id);
+      let price = fungible_asset.get_price();
+
+      msg!("Minting a new {}", fungible_asset.to_string());
+      sla_token::mint_tokens(mint, ata, treasury, token_program.clone(), Some(signer_seeds), 1)?;
+
+      if fungible_asset != sla_fungible_token::FungibleAsset::ID_CARD {
+        panic!("Only ID Cards can be minted at this point")
+      }
+
+      msg!("Transferring {} $HAY to treasury", price);
+      sla_token::transfer_tokens(
+        ctx.accounts.hay_user_ata.to_account_info(), 
+        ctx.accounts.hay_treasury_ata.to_account_info(), 
+        ctx.accounts.user.to_account_info(), 
+        token_program, 
+        u64::from(price),
       )?;
+      
+      Ok(())
+    }
+
+
+    pub fn change_alias(ctx: Context<ChangeAlias>, metadata_uri: String, new_name: String) -> ProgramResult {
+
+      let avatar_metadata = ctx.accounts.avatar_metadata.to_account_info();
+      let metadata_program = ctx.accounts.metadata_program.to_account_info();
+      let payer = ctx.accounts.payer.to_account_info();
+      let combine_authority = ctx.accounts.combine_authority.to_account_info();
+
+      // Verify that the avatar belongs to the SLA collection
+      msg!("Verifying agent belongs to the right collection");
+      verify_avatar(
+        ctx.accounts.avatar_mint.key(),
+        ctx.accounts.avatar_token.clone(),
+        payer.key(),
+        &avatar_metadata,
+      )?;
+
+      // Update the metadata URI through the Metaplex program
+      msg!("Updating agent metadata with new URI");
+      sla_metadata::update_metadata(
+        avatar_metadata, 
+        combine_authority,
+        metadata_program,
+        metadata_uri,
+        Some(new_name),
+      )?;
+
+      // Burn the trait token
+      msg!("Burning ID Card token");
+      sla_token::burn_trait(
+        ctx.accounts.id_card_ata.to_account_info(), 
+        ctx.accounts.id_card_mint.to_account_info(), 
+        payer.clone(), 
+        ctx.accounts.token_program.to_account_info()
+      )?;
+
+      msg!("Instruction finished");
 
       Ok(())
     }
@@ -508,231 +516,121 @@ pub struct CreateMasterEdition<'info> {
   pub system_program: Program<'info, System>,
 }
 
-#[derive(Accounts)]
-#[instruction(treasury_bump: u8)]
-pub struct MintEdition<'info> {
-  // Additional checks on the Llama are performed later
-  pub llama_mint: Account<'info, anchor_spl::token::Mint>,
-  #[account(
-    associated_token::mint = llama_mint,
-    associated_token::authority = user,
-  )]
-  pub llama_ata: Account<'info, anchor_spl::token::TokenAccount>,
-  pub llama_metadata: AccountInfo<'info>,
-
-  // $HAY accounts
-  #[account(
-    constraint = assert_address(&hay_mint.key(), sla_constants::HAY_TOKEN_MINT)
-  )]
-  pub hay_mint: Account<'info, anchor_spl::token::Mint>,
+// #[derive(Accounts)]
+// #[instruction(treasury_bump: u8)]
+// pub struct MintEdition<'info> {
+//   #[account(
+//     constraint = assert_address(&hay_mint.key(), sla_constants::HAY_TOKEN_MINT)
+//       @ SlaErrors::InvalidPubkey
+//   )]
+//   pub hay_mint: Box<Account<'info, anchor_spl::token::Mint>>,
   
-  #[account(
-    associated_token::mint = hay_mint,
-    associated_token::authority = user,
-  )]
-  pub hay_user_ata: Account<'info, anchor_spl::token::TokenAccount>,
+//   #[account(
+//     mut,
+//     associated_token::mint = hay_mint,
+//     associated_token::authority = user,
+//   )]
+//   pub hay_user_ata: Box<Account<'info, anchor_spl::token::TokenAccount>>,
 
-  #[account(mut)]
-  pub new_metadata: AccountInfo<'info>,
+//   // Address checked in instruction
+//   #[account(
+//     mut,
+//     constraint = assert_address(hay_treasury_ata.key, sla_constants::HAY_TREASURY_WALLET_ATA)
+//       @ SlaErrors::InvalidPubkey
+//   )]
+//   pub hay_treasury_ata: AccountInfo<'info>,
 
-  #[account(mut)]
-  pub new_edition: AccountInfo<'info>,
+//   #[account(mut)]
+//   pub new_metadata: AccountInfo<'info>,
+
+//   #[account(mut)]
+//   pub new_edition: AccountInfo<'info>,
   
-  #[account(
-    init,
-    payer = user,
-    mint::decimals = 0,
-    mint::authority = treasury,
-  )]
-  pub new_mint: Account<'info, anchor_spl::token::Mint>,
+//   #[account(
+//     init,
+//     payer = user,
+//     mint::decimals = 0,
+//     mint::authority = treasury,
+//   )]
+//   pub new_mint: Account<'info, anchor_spl::token::Mint>,
 
-  #[account(
-    init,
-    payer = user, 
-    associated_token::mint = new_mint,
-    associated_token::authority = user,
-  )]
-  pub new_ata: Account<'info, anchor_spl::token::TokenAccount>,
+//   #[account(
+//     init,
+//     payer = user, 
+//     associated_token::mint = new_mint,
+//     associated_token::authority = user,
+//   )]
+//   pub new_ata: Account<'info, anchor_spl::token::TokenAccount>,
 
-  #[account(mut)]
-  pub edition_marker: AccountInfo<'info>,
+//   #[account(mut)]
+//   pub edition_marker: AccountInfo<'info>,
 
-  #[account(mut)]
-  pub master_edition: AccountInfo<'info>,
+//   #[account(mut)]
+//   pub master_edition: AccountInfo<'info>,
 
-  // Checks will be performed by mpl_token_metadata_program
-  pub master_metadata: AccountInfo<'info>,
+//   // Checks will be performed by mpl_token_metadata_program
+//   pub master_metadata: AccountInfo<'info>,
+
+//   // Checks will be performed by mpl_token_metadata_program
+//   pub master_ata: Box<Account<'info, anchor_spl::token::TokenAccount>>,
   
-  // Checks will be performed by mpl_token_metadata_program
-  pub master_mint: Account<'info, anchor_spl::token::Mint>,
+//   #[account(mut)]
+//   pub user: Signer<'info>,
 
-  // Checks will be performed by mpl_token_metadata_program
-  pub master_ata: Account<'info, anchor_spl::token::TokenAccount>,
-  
-  #[account(mut)]
-  pub user: Signer<'info>,
+//   // #[account(
+//   //   seeds = [sla_constants::PREFIX_TREASURY.as_bytes()],
+//   //   bump = treasury_bump,
+//   // )]
+//   pub treasury: AccountInfo<'info>,
 
-  #[account(
-    seeds = [sla_constants::PREFIX_TREASURY.as_bytes()],
-    bump = treasury_bump,
-  )]
-  pub treasury: AccountInfo<'info>,
-
-  pub rent: Sysvar<'info, Rent>,
-  pub token_program: Program<'info, anchor_spl::token::Token>,
-  pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
-  #[account(address = mpl_token_metadata::ID)]
-  pub mpl_token_metadata_program: AccountInfo<'info>,
-  pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-#[instruction(treasury_bump: u8)]
-pub struct MintHayUnlimited<'info> {
-  #[account(mut)]
-  pub hay_mint: Account<'info, anchor_spl::token::Mint>,
-
-  #[account(
-    init_if_needed,
-    payer = authority,
-    associated_token::mint = hay_mint,
-    associated_token::authority = user,
-  )]
-  pub hay_ata: Account<'info, anchor_spl::token::TokenAccount>,
-
-  // This is the person to whom we are sending $HAY
-  pub user: AccountInfo<'info>,
-
-  // This is the SLA Treasury PDA
-  #[account(
-    seeds = [sla_constants::PREFIX_TREASURY.as_bytes()],
-    bump = treasury_bump,
-  )]
-  pub treasury: AccountInfo<'info>,
-
-  #[account(
-    mut,
-    constraint = assert_address(authority.key, sla_constants::HAY_TREASURY_WALLET)
-      @ SlaErrors::SignerIsNotHayTreasury
-  )]
-  pub authority: Signer<'info>,
-
-  pub rent: Sysvar<'info, Rent>,
-  pub token_program: Program<'info, anchor_spl::token::Token>,
-  pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
-  pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-#[instruction(treasury_bump: u8, llama_bump: u8)]
-pub struct MintHay<'info> {
-  #[account(mut)]
-  pub hay_mint: Account<'info, anchor_spl::token::Mint>,
-  pub llama_mint: Account<'info, anchor_spl::token::Mint>,
-
-  #[account(
-    init_if_needed,
-    payer = fee_payer,
-    associated_token::mint = hay_mint,
-    associated_token::authority = user,
-  )]
-  pub hay_ata: Account<'info, anchor_spl::token::TokenAccount>,
-
-  #[account(
-    associated_token::mint = llama_mint,
-    associated_token::authority = user,
-  )]
-  pub llama_ata: Account<'info, anchor_spl::token::TokenAccount>,
-
-  // This is the PDA associated with the Llama NFT
-  #[account(
-    init_if_needed,
-    seeds = [sla_constants::PREFIX_LLAMA.as_bytes(), &llama_mint.key().to_bytes()],
-    bump = llama_bump,
-    payer = fee_payer,
-    space = sla_accounts::AvatarAccount::LEN,
-  )]
-  pub llama: Account<'info, sla_accounts::AvatarAccount>,
-
-  // This is the person owning the Llama NFT to whom we are airdropping 
-  // a Hay token
-  pub user: AccountInfo<'info>,
-
-  // This is the SLA Treasury PDA
-  #[account(
-    seeds = [sla_constants::PREFIX_TREASURY.as_bytes()],
-    bump = treasury_bump,
-  )]
-  pub treasury: AccountInfo<'info>,
-
-  #[account(mut)]
-  pub fee_payer: Signer<'info>,
-
-  pub rent: Sysvar<'info, Rent>,
-  pub clock: Sysvar<'info, Clock>,
-  pub token_program: Program<'info, anchor_spl::token::Token>,
-  pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
-  pub system_program: Program<'info, System>,
-}
-
+//   pub rent: Sysvar<'info, Rent>,
+//   pub token_program: Program<'info, anchor_spl::token::Token>,
+//   pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
+//   #[account(address = mpl_token_metadata::ID)]
+//   pub mpl_token_metadata_program: AccountInfo<'info>,
+//   pub system_program: Program<'info, System>,
+// }
 
 // #[derive(Accounts)]
-// #[instruction(avatar_bump: u8, master_bump: u8, trait_id: u8)]
-// pub struct MintTraitWhitelistToken<'info> {
-//   #[account(
-//     init_if_needed,
-//     seeds = [SLA_LLAMA_SEED.as_bytes(), &avatar_mint.key().to_bytes()],
-//     bump = avatar_bump,
-//     payer = payer,
-//     space = sla_accounts::AvatarAccount::LEN,
-//   )]
-//   pub avatar: Account<'info, sla_accounts::AvatarAccount>,
-
-//   pub avatar_mint: Account<'info, token::Mint>,
-
-//   #[account(
-//     associated_token::mint = avatar_mint,
-//     associated_token::authority = payer,
-//   )]
-//   pub avatar_token: Account<'info, token::TokenAccount>,
+// #[instruction(treasury_bump: u8)]
+// pub struct MintHayUnlimited<'info> {
+//   #[account(mut)]
+//   pub hay_mint: Account<'info, anchor_spl::token::Mint>,
 
 //   #[account(
 //     init_if_needed,
-//     seeds = [SLA_LLAMA_SEED.as_bytes()],
-//     bump = master_bump,
-//     payer = payer,
-//     space = 8,
+//     payer = authority,
+//     associated_token::mint = hay_mint,
+//     associated_token::authority = user,
 //   )]
-//   pub sla_master_pda: AccountInfo<'info>,
+//   pub hay_ata: Account<'info, anchor_spl::token::TokenAccount>,
 
+//   // This is the person to whom we are sending $HAY
+//   pub user: AccountInfo<'info>,
+
+//   // This is the SLA Treasury PDA
 //   #[account(
-//     init_if_needed,
-//     payer = payer,
-//     associated_token::mint = whitelist_mint,
-//     associated_token::authority = payer,
+//     seeds = [sla_constants::PREFIX_TREASURY.as_bytes()],
+//     bump = treasury_bump,
 //   )]
-//   pub whitelist_token: Account<'info, token::TokenAccount>,
+//   pub treasury: AccountInfo<'info>,
 
 //   #[account(
 //     mut,
-//     constraint = sla_whitelist::check_whitelist_mint_id(&whitelist_mint.key(), trait_id) 
-//       @ SlaErrors::InvalidWhitelistMint,
+//     constraint = assert_address(authority.key, sla_constants::HAY_TREASURY_WALLET)
+//       @ SlaErrors::SignerIsNotHayTreasury
 //   )]
-//   pub whitelist_mint: Account<'info, token::Mint>,
+//   pub authority: Signer<'info>,
 
-//   #[account(mut)]
-//   pub payer: Signer<'info>,
-
-//   pub token_program: Program<'info, token::Token>,
-//   pub system_program: Program<'info, System>,
 //   pub rent: Sysvar<'info, Rent>,
-//   pub associated_token_program: Program<'info, associated_token::AssociatedToken>,
+//   pub token_program: Program<'info, anchor_spl::token::Token>,
+//   pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
+//   pub system_program: Program<'info, System>,
 // }
-
 
 #[derive(Accounts)]
 #[instruction(avatar_bump: u8)]
-pub struct CheckMergeIsAllowed<'info> {
+pub struct Merge<'info> {
   #[account(
     init_if_needed,
     seeds = [sla_constants::PREFIX_LLAMA.as_bytes(), &avatar_mint.key().to_bytes()],
@@ -743,6 +641,8 @@ pub struct CheckMergeIsAllowed<'info> {
   pub avatar: Account<'info, sla_accounts::AvatarAccount>,
   
   pub avatar_mint: Account<'info, anchor_spl::token::Mint>,
+  
+  #[account(mut)]
   pub trait_mint: Account<'info, anchor_spl::token::Mint>,
 
   #[account(
@@ -752,60 +652,127 @@ pub struct CheckMergeIsAllowed<'info> {
   pub avatar_token: Account<'info, anchor_spl::token::TokenAccount>,
 
   #[account(
+    mut,
     associated_token::mint = trait_mint,
     associated_token::authority = payer,
   )]
   pub trait_token: Account<'info, anchor_spl::token::TokenAccount>,
   
   #[account(mut)]
+  pub avatar_metadata: AccountInfo<'info>,
+
+  #[account(mut)]
+  pub trait_metadata: AccountInfo<'info>,
+
+  #[account(mut)]
   pub payer: Signer<'info>,
+
+  #[account(
+    mut,
+    constraint = assert_address(combine_authority.key, sla_constants::COMBINE_AUTHORITY_WALLET)
+  )]
+  pub combine_authority: Signer<'info>,
+
+  #[account(address = anchor_spl::token::ID)]
+  pub token_program: AccountInfo<'info>,
+
+  #[account(address = mpl_token_metadata::ID)]
+  pub metadata_program: AccountInfo<'info>,
 
   pub system_program: Program<'info, System>,
 }
 
+
 #[derive(Accounts)]
-#[instruction(master_bump: u8, avatar_bump: u8)]
-pub struct Merge<'info> {
+#[instruction(treasury_bump: u8, asset_id: u8)]
+pub struct MintFungibleAsset<'info> {
   #[account(
     mut,
-    seeds = [sla_constants::PREFIX_LLAMA.as_bytes(), &avatar_mint.key().to_bytes()],
-    bump = avatar_bump,
+    constraint = sla_fungible_token::assert_mint_address(&mint.key(), asset_id) @ SlaErrors::InvalidPubkey
   )]
-  pub avatar: Account<'info, sla_accounts::AvatarAccount>,
-  
-  pub avatar_mint: Account<'info, anchor_spl::token::Mint>,
+  pub mint: Account<'info, anchor_spl::token::Mint>,
 
-  #[account(mut)]
-  pub trait_mint: Account<'info, anchor_spl::token::Mint>,
+  #[account(
+    init_if_needed,
+    payer = user,
+    associated_token::mint = mint,
+    associated_token::authority = user,
+  )]
+  pub ata: Account<'info, anchor_spl::token::TokenAccount>,
+
+  // This is the person who is minting
+  pub user: AccountInfo<'info>,
+
+  // This is the SLA Treasury PDA
+  #[account(
+    seeds = [sla_constants::PREFIX_TREASURY.as_bytes()],
+    bump = treasury_bump,
+  )]
+  pub treasury: AccountInfo<'info>,
+
+  #[account(
+    constraint = assert_address(&hay_mint.key(), sla_constants::HAY_TOKEN_MINT)
+      @ SlaErrors::InvalidPubkey
+  )]
+  pub hay_mint: Account<'info, anchor_spl::token::Mint>,
+
+  // This is the user's $HAY ATA
+  #[account(
+    mut,
+    associated_token::mint = hay_mint,
+    associated_token::authority = user,
+  )]
+  pub hay_user_ata: Account<'info, anchor_spl::token::TokenAccount>,
+
+  #[account(
+    mut,
+    constraint = assert_address(hay_treasury_ata.key, sla_constants::HAY_TREASURY_WALLET_ATA)
+      @ SlaErrors::InvalidPubkey
+  )]
+  pub hay_treasury_ata: AccountInfo<'info>,
+
+  pub rent: Sysvar<'info, Rent>,
+  pub token_program: Program<'info, anchor_spl::token::Token>,
+  pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
+  pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction()]
+pub struct ChangeAlias<'info> {  
+  pub avatar_mint: Account<'info, anchor_spl::token::Mint>,
 
   #[account(
     associated_token::mint = avatar_mint,
     associated_token::authority = payer,
   )]
   pub avatar_token: Account<'info, anchor_spl::token::TokenAccount>,
-
-  #[account(
-    mut,
-    associated_token::mint = trait_mint,
-    associated_token::authority = payer,
-  )]
-  pub trait_token: Account<'info, anchor_spl::token::TokenAccount>,
   
-  #[account(mut)]
-  pub payer: Signer<'info>,
-
   #[account(mut)]
   pub avatar_metadata: AccountInfo<'info>,
 
   #[account(
-    seeds = [sla_constants::PREFIX_MASTER.as_bytes()],
-    bump = master_bump,
+    mut,
+    constraint = assert_address(&id_card_mint.key(), sla_constants::ID_CARD_MINT)
+      @ SlaErrors::InvalidPubkey
   )]
-  pub sla_master_pda: AccountInfo<'info>,
+  pub id_card_mint: Account<'info, anchor_spl::token::Mint>,
 
-  // The wallet paying for Arweave upload transactions
+  #[account(
+    mut,
+    associated_token::mint = id_card_mint,
+    associated_token::authority = payer,
+  )]
+  pub id_card_ata: Account<'info, anchor_spl::token::TokenAccount>,
+
   #[account(mut)]
-  pub arweave_wallet: AccountInfo<'info>,
+  pub payer: Signer<'info>,
+
+  #[account(
+    mut,
+    constraint = assert_address(combine_authority.key, sla_constants::COMBINE_AUTHORITY_WALLET)
+  )]
+  pub combine_authority: Signer<'info>,
 
   #[account(address = anchor_spl::token::ID)]
   pub token_program: AccountInfo<'info>,

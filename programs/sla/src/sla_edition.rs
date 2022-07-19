@@ -62,7 +62,7 @@ pub fn mint_edition_from_master_edition<'info> (
   user: AccountInfo<'info>,
   master_ata: AccountInfo<'info>,
   master_metadata: AccountInfo<'info>,
-  master_mint: AccountInfo<'info>,
+  master_mint: Pubkey,
   token_program: AccountInfo<'info>,
   system_program: AccountInfo<'info>,
   rent_sysvar: AccountInfo<'info>,
@@ -86,7 +86,7 @@ pub fn mint_edition_from_master_edition<'info> (
     master_ata.key(),  // master edition ATA
     treasury.key(),  // new_metadata update_authority
     master_metadata.key(),
-    master_mint.key(),
+    master_mint,
     edition_number,
   );
 
@@ -106,8 +106,6 @@ pub fn mint_edition_from_master_edition<'info> (
     system_program,
     rent_sysvar,
   ];
-
-  msg!("About to send the transaction");
     
   invoke_signed(
     &instruction,

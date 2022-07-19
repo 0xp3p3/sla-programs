@@ -1,11 +1,11 @@
 use anchor_lang::prelude::*;
-use solana_program::program::invoke_signed;
+use solana_program::program::{invoke, invoke_signed};
 use mpl_token_metadata::{
   instruction::{update_metadata_accounts_v2, create_metadata_accounts_v2}, 
   ID, state
 };
 
-use crate::sla_constants::{PREFIX_MASTER, PREFIX_TREASURY};
+use crate::sla_constants::{PREFIX_TREASURY};
 
 
 pub fn create_metadata_account<'info>(
@@ -13,6 +13,7 @@ pub fn create_metadata_account<'info>(
   new_mint: AccountInfo<'info>,
   treasury: AccountInfo<'info>,
   creator: AccountInfo<'info>,
+  community_wallet: Pubkey,
   name: String, 
   symbol: String,
   uri: String,
@@ -24,10 +25,16 @@ pub fn create_metadata_account<'info>(
   treasury_bump: u8,
 ) -> ProgramResult {
 
-  let creators = state::Creator {
+  let creator_wallet = state::Creator {
     address: creator.key(),
     verified: true,
-    share: 100,
+    share: 30,
+  };
+
+  let community_wallet = state::Creator {
+    address: community_wallet,
+    verified: false,
+    share: 70,
   };
 
   let instruction = create_metadata_accounts_v2(
@@ -38,7 +45,7 @@ pub fn create_metadata_account<'info>(
     creator.key(),  // payer
     creator.key(),  // update authority
     name, symbol, uri, 
-    Some(vec![creators]), 
+    Some(vec![creator_wallet, community_wallet]), 
     seller_fee_basis_points, 
     true,   // update_authority_is_signer
     false,  // is_mutable 
@@ -96,15 +103,18 @@ pub fn update_metadata<'info>(
   metadata_account: AccountInfo<'info>, 
   update_authority: AccountInfo<'info>, 
   metadata_program: AccountInfo<'info>,
-  master_bump: u8,
-  new_uri: String
+  new_uri: String,
+  new_name: Option<String>,
 ) -> ProgramResult {
 
   let metadata = state::Metadata::from_account_info(&metadata_account)?;
 
   // Update the URI field in the data
   let data = state::DataV2 {
-    name: metadata.data.name,
+    name: match new_name {
+      Some(name) => name,
+      None => metadata.data.name,
+    },
     symbol: metadata.data.symbol,
     uri: new_uri,
     seller_fee_basis_points: metadata.data.seller_fee_basis_points,
@@ -126,12 +136,8 @@ pub fn update_metadata<'info>(
 
   let accounts = &[metadata_program, metadata_account, update_authority];
 
-  // Send and sign the transaction using the update authority PDA
-  invoke_signed(
-    &instruction,
-    accounts,
-    &[&[PREFIX_MASTER.as_bytes(), &[master_bump]]],
-  )
+  // Send the transaction
+  invoke(&instruction, accounts)
 }
 
 pub fn check_verified_creator(
