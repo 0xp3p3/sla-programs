@@ -2,6 +2,8 @@
 // PDA SEEDS
 pub const PREFIX_LLAMA: &str = "sla_llama";
 pub const PREFIX_TREASURY: &str = "sla_treasury";
+pub const PREFIX_RANKING: &str = "sla_ranking";
+pub const PREFIX_BADGE_POT: &str = "sla_badge_pot";
 
 // PRICES (in $HAY)
 pub const PRICE_ID_CARD: u16 = 60;
@@ -11,10 +13,14 @@ pub const PRICE_BADGE_GOLD: u16 = 210;
 pub const PRICE_BADGE_PLATINUM: u16 = 405;
 pub const PRICE_BADGE_DIAMOND: u16 = 660;
 
+// TOTAL SUPPLIES
+pub const SUPPLY_BADGE_BRONZE: u16 = 3000;
+pub const SUPPLY_BADGE_SILVER: u16 = 2100;
+pub const SUPPLY_BADGE_GOLD: u16 = 1350;
+pub const SUPPLY_BADGE_PLATINUM: u16 = 750;
+pub const SUPPLY_BADGE_DIAMOND: u16 = 300;
+
 // WALLET PUBKEYS
-pub const COLLECTIONS_CREATOR_WALLET: &str = "5JTEZn8o81DgXbPMPJmNuMBYASsE1e8HHBqnCVnZqgnR";
-pub const HAY_TREASURY_WALLET: &str = "GYoijtAH31pDLNGz4UYCf5aRGe92iwx7BWv2CZtwUKDC";
-pub const COMMUNITY_WALLET: &str = "GVidbhwCjV4AFsuuQTwDGTm7gVE7BeBsK6V2jYHZR54n";
 pub const COMBINE_AUTHORITY_WALLET: &str = "2Pi1TvYf8Nku8ppq3Pn4ZEHDNo8fFhZjcLaRHi17Au4C";
 
 // HAY TOKEN
@@ -23,11 +29,11 @@ pub const HAY_TREASURY_WALLET_ATA: &str = "EranN9BrZUtNypY6byq5zRpBukvhAxfRxTErY
 
 // FUNGIBLE ASSETS
 pub const ID_CARD_MINT: &str = "9mxy4zbRkb4CJbWz3cyjgVas3ok9dqdAZPWHQD34o2Jo";
-pub const BADGE_BRONZE_MINT: &str = "";
-pub const BADGE_SILVER_MINT: &str = "";
-pub const BADGE_GOLD_MINT: &str = "";
-pub const BADGE_PLATINUM_MINT: &str = "";
-pub const BADGE_DIAMOND_MINT: &str = "";
+pub const BADGE_BRONZE_MINT: &str = "AxJohkM2mvtXzkSf6oLy4NjXtrvJUehiMAPjsJ6V1S1u";
+pub const BADGE_SILVER_MINT: &str = "HVXkw7SaH3i1KKhisgVfE8meUpdawyo6BtjX1YvRCEHL";
+pub const BADGE_GOLD_MINT: &str = "6MsxoFAhvfL4DcYniQ4FoMdhaRATgzkG1XwyNdLKeMc2";
+pub const BADGE_PLATINUM_MINT: &str = "HZktv6wRgAaLJSoGsXcEhZbJaH6CsmFnuXLbZ93h8LZt";
+pub const BADGE_DIAMOND_MINT: &str = "gQrMXw5EpWVmiikvapTxcHGuaDH3NYbTJwC9voyqfFG";
 
 // HARD-CODED COLLECTION KEYS
 pub const LLAMA_COLLECTION: &str = "GqxAoZaqww9zp6y5RddRhExrwTVySfAjLnheaJVjSvag";

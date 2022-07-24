@@ -46,6 +46,22 @@ pub enum SlaErrors {
 
   //**************
 
+  /*** MINTING FUNGIBLE ASSET ERRORS ***/
+
+  #[msg("Assset ID does not match a Badge")]
+  AssetIDIsNotBadge,
+
+  #[msg("Agent does not have the required rank to mint this badge")]
+  NotAllowedToMintBadge,
+
+  #[msg("Agent has already minted the next badge")]
+  NextBadgeAlreadyMinted,
+
+  #[msg("Max supply has been reached")]
+  AssetMaxSupplyReached,
+
+  //**************
+
   /*** MINTING NEW EDITION ERRORS ***/
 
   #[msg("Master Edition not recognised")]
@@ -84,9 +100,4 @@ pub enum SlaErrors {
   #[msg("The trait cannot be minted by this avatar")]
   AvatarCannotMintTrait,
 
-  #[msg("The Whitelist Mint does not match the Trait Type")]
-  InvalidWhitelistMint,
-
-  #[msg("Hay cannot be minted at this time")]
-  HayCannotBeMinted,
 }

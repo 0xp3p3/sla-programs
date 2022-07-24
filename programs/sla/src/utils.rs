@@ -5,18 +5,8 @@ use std::str::FromStr;
 
 use crate::sla_collection::{check_collection, extract_trait_id};
 use crate::sla_constants;
-use crate::sla_metadata::check_verified_creator;
 use crate::SlaErrors;
 
-pub fn transfer<'info>(
-  from: AccountInfo<'info>,
-  to: AccountInfo<'info>,
-  lambports: u64,
-) -> Result<(), ProgramError> {
-  let instruction = solana_program::system_instruction::transfer(&from.key(), &to.key(), lambports);
-
-  solana_program::program::invoke(&instruction, &[from, to])
-}
 
 pub fn str_to_pubkey(key: &str) -> Pubkey {
   Pubkey::from_str(key).unwrap()
