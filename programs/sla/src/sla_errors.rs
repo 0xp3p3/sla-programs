@@ -60,6 +60,12 @@ pub enum SlaErrors {
   #[msg("Max supply has been reached")]
   AssetMaxSupplyReached,
 
+  #[msg("Aggent does not have the reqiured rank to use this badge")]
+  NotAllowedToUpgradeRank,
+
+  #[msg("Agent has already minted a scanner")]
+  ScannerAlreadyMinted,
+
   //**************
 
   /*** MINTING NEW EDITION ERRORS ***/

@@ -112,14 +112,30 @@ pub mod sla {
       )
     }
 
-    pub fn mint_badge(
-      ctx: Context<MintBadge>, 
+    pub fn mint_scanner(ctx: Context<MintScanner>, treasury_bump: u8) -> ProgramResult {
+      msg!("Entering the MintScanner instruction");
+
+      sla_fungible_token::mint_scanner(
+        ctx.accounts.mint.to_account_info(),
+        ctx.accounts.ata.to_account_info(),
+        ctx.accounts.user.to_account_info(),
+        ctx.accounts.treasury.to_account_info(),
+        ctx.accounts.hay_user_ata.to_account_info(),
+        ctx.accounts.hay_treasury_ata.to_account_info(),
+        ctx.accounts.token_program.to_account_info(),
+        treasury_bump,
+      )
+    }
+
+    pub fn mint_badge_v2(
+      ctx: Context<MintBadgeV2>, 
       treasury_bump: u8, 
-      ranking_bump: u8, 
+      ranking_v1_bump: u8, 
+      ranking_v2_bump: u8, 
       badge_supply_counter_bump: u8,
       asset_id: u8,
     ) -> ProgramResult {
-      msg!("Entering the MintBadge instruction");
+      msg!("Entering the MintBadgeV2 instruction");
 
       let user = ctx.accounts.user.to_account_info();
       let asset_to_mint = sla_fungible_token::FungibleAsset::from_u8(asset_id);
@@ -137,10 +153,15 @@ pub mod sla {
       let badge_supply_counter = &mut ctx.accounts.badge_supply_counter;
       badge_supply_counter.increment(asset_to_mint)?;
 
+      // Convert from Ranking V1 to V2
+      msg!("Updating from ranking v1 to v2");
+      let ranking_v1 = &mut ctx.accounts.ranking_v1;
+      let ranking_v2 = &mut ctx.accounts.ranking_v2;
+      ranking_v2.from_v1(ranking_v1);
+
       // Update the avatar ranking (+ check if the avatar is allowed to mint this badge)
-      msg!("Checking if the ranking upgrade is allowed");
-      let ranking = &mut ctx.accounts.ranking;
-      ranking.check_upgrade_is_allowed(asset_to_mint)?;
+      msg!("Minting the badge + checking the agent is allowed to do so");
+      ranking_v2.mint(asset_to_mint)?;
       
       sla_fungible_token::mint_fungible_asset(
         ctx.accounts.mint.to_account_info(),
@@ -154,7 +175,6 @@ pub mod sla {
         treasury_bump,
       )?;
 
-      ranking.mint_next()?;
       Ok(())
     }
 
@@ -198,9 +218,55 @@ pub mod sla {
       Ok(())
     }
 
-    pub fn merge_badge(
-      ctx: Context<MergeBadge>, 
-      ranking_bump: u8, 
+    pub fn scan_agent(ctx: Context<ScanAgent>, metadata_uri: Option<String>) -> ProgramResult {
+
+      let avatar_metadata = ctx.accounts.avatar_metadata.to_account_info();
+      let metadata_program = ctx.accounts.metadata_program.to_account_info();
+      let user = ctx.accounts.user.to_account_info();
+      let combine_authority = ctx.accounts.combine_authority.to_account_info();
+
+      // Verify that the avatar belongs to the SLA collection
+      msg!("Verifying agent belongs to the right collection");
+      verify_avatar(
+        ctx.accounts.avatar_mint.key(),
+        ctx.accounts.avatar_token.clone(),
+        user.key(),
+        &avatar_metadata,
+      )?;
+
+      // Update the metadata URI through the Metaplex program if needed
+      match metadata_uri {
+        Some(uri) => {
+          msg!("Updating agent metadata with new URI {}", uri);
+          sla_metadata::update_metadata(
+            avatar_metadata, 
+            combine_authority,
+            metadata_program,
+            uri,
+            None,
+          )?;
+        },
+        None => {
+          msg!("No need to update the metadata URI");
+        },
+      };
+
+      // Burn the trait token
+      msg!("Burning Scanning Device token");
+      sla_token::burn_trait(
+        ctx.accounts.scanner_ata.to_account_info(), 
+        ctx.accounts.scanner_mint.to_account_info(), 
+        user.clone(), 
+        ctx.accounts.token_program.to_account_info()
+      )?;
+      
+      Ok(())
+    }
+
+    pub fn merge_badge_v2(
+      ctx: Context<MergeBadgeV2>, 
+      ranking_v1_bump: u8, 
+      ranking_v2_bump: u8, 
       asset_id: u8,
       metadata_uri: String,
     ) -> ProgramResult {
@@ -229,7 +295,7 @@ pub mod sla {
         None,
       )?;
 
-      // Burn the trait token
+      // Burn the badge token
       msg!("Burning Badge token");
       sla_token::burn_trait(
         ctx.accounts.badge_ata.to_account_info(), 
@@ -238,12 +304,38 @@ pub mod sla {
         ctx.accounts.token_program.to_account_info()
       )?;
 
+      // Convert from Ranking V1 to V2
+      msg!("Updating from ranking v1 to v2");
+      let ranking_v1 = &mut ctx.accounts.ranking_v1;
+      let ranking_v2 = &mut ctx.accounts.ranking_v2;
+      ranking_v2.from_v1(ranking_v1);
+
       // Update the Ranking PDA data
       msg!("Updating the Ranking PDA account");
-      let ranking = &mut ctx.accounts.ranking;
-      ranking.update_ranking(sla_fungible_token::FungibleAsset::from_u8(asset_id))?;
+      ranking_v2.update_ranking(sla_fungible_token::FungibleAsset::from_u8(asset_id))?;
 
       msg!("Instruction finished");
+      Ok(())
+    }
+
+    pub fn add_badge(
+      ctx: Context<AddBadge>,
+      ranking_v1_bump: u8,
+      ranking_v2_bump: u8,
+      asset_id: u8,
+    ) -> ProgramResult {
+
+      // Convert from Ranking V1 to V2
+      msg!("Updating from ranking v1 to v2");
+      let ranking_v1 = &mut ctx.accounts.ranking_v1;
+      let ranking_v2 = &mut ctx.accounts.ranking_v2;
+      ranking_v2.from_v1(ranking_v1);
+
+      // Update the Ranking PDA data
+      msg!("Updating the Ranking PDA account");
+      let ranking_v2 = &mut ctx.accounts.ranking_v2;
+      ranking_v2.update_ranking(sla_fungible_token::FungibleAsset::from_u8(asset_id))?;
+
       Ok(())
     }
 
@@ -366,14 +458,71 @@ pub struct MintIdCard<'info> {
   pub system_program: Program<'info, System>,
 }
 
+
+#[derive(Accounts)]
+#[instruction(treasury_bump: u8)]
+pub struct MintScanner<'info> {
+  #[account(
+    mut,
+    constraint = assert_address(&mint.key(), sla_constants::SCANNER_MINT) @ SlaErrors::InvalidPubkey
+  )]
+  pub mint: Box<Account<'info, anchor_spl::token::Mint>>,
+
+  #[account(
+    init_if_needed, 
+    payer = user,
+    associated_token::mint = mint,
+    associated_token::authority = user,
+  )]
+  pub ata: Box<Account<'info, anchor_spl::token::TokenAccount>>,
+
+  // This is the person who is minting
+  pub user: AccountInfo<'info>,
+
+  // This is the SLA Treasury PDA
+  #[account(
+    seeds = [sla_constants::PREFIX_TREASURY.as_bytes()],
+    bump = treasury_bump,
+  )]
+  pub treasury: AccountInfo<'info>,
+
+  #[account(
+    constraint = assert_address(&hay_mint.key(), sla_constants::HAY_TOKEN_MINT)
+      @ SlaErrors::InvalidPubkey
+  )]
+  pub hay_mint: Box<Account<'info, anchor_spl::token::Mint>>,
+
+  // This is the user's $HAY ATA
+  #[account(
+    mut,
+    associated_token::mint = hay_mint,
+    associated_token::authority = user,
+  )]
+  pub hay_user_ata: Box<Account<'info, anchor_spl::token::TokenAccount>>,
+
+  #[account(
+    mut,
+    constraint = assert_address(hay_treasury_ata.key, sla_constants::HAY_TREASURY_WALLET_ATA)
+      @ SlaErrors::InvalidPubkey
+  )]
+  pub hay_treasury_ata: AccountInfo<'info>,
+
+  pub rent: Sysvar<'info, Rent>,
+  pub token_program: Program<'info, anchor_spl::token::Token>,
+  pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
+  pub system_program: Program<'info, System>,
+}
+
+
 #[derive(Accounts)]
 #[instruction(
   treasury_bump: u8, 
-  ranking_bump: u8, 
+  ranking_v1_bump: u8, 
+  ranking_v2_bump: u8,
   badge_supply_counter_bump: u8,
   asset_id: u8,
 )]
-pub struct MintBadge<'info> {
+pub struct MintBadgeV2<'info> {
   #[account(
     mut,
     constraint = sla_fungible_token::assert_mint_address(&mint.key(), asset_id) 
@@ -434,11 +583,20 @@ pub struct MintBadge<'info> {
   #[account(
     init_if_needed,
     seeds = [sla_constants::PREFIX_RANKING.as_bytes(), &avatar_mint.key().to_bytes()],
-    bump = ranking_bump,
+    bump = ranking_v1_bump,
     payer = user, 
     space = sla_accounts::Ranking::LEN,
   )]
-  pub ranking: Box<Account<'info, sla_accounts::Ranking>>,
+  pub ranking_v1: Box<Account<'info, sla_accounts::Ranking>>,
+
+  #[account(
+    init_if_needed,
+    seeds = [sla_constants::PREFIX_RANKING_V2.as_bytes(), &avatar_mint.key().to_bytes()],
+    bump = ranking_v2_bump,
+    payer = user, 
+    space = sla_accounts::RankingV2::LEN,
+  )]
+  pub ranking_v2: Box<Account<'info, sla_accounts::RankingV2>>,
 
   #[account(
     mut,
@@ -500,12 +658,62 @@ pub struct ChangeAlias<'info> {
   pub system_program: Program<'info, System>,
 }
 
+
+#[derive(Accounts)]
+#[instruction()]
+pub struct ScanAgent<'info> {
+  
+  pub avatar_mint: Account<'info, anchor_spl::token::Mint>,
+
+  #[account(
+    associated_token::mint = avatar_mint,
+    associated_token::authority = user,
+  )]
+  pub avatar_token: Account<'info, anchor_spl::token::TokenAccount>,
+  
+  #[account(mut)]
+  pub avatar_metadata: AccountInfo<'info>,
+
+  #[account(
+    mut,
+    constraint = assert_address(&scanner_mint.key(), sla_constants::SCANNER_MINT)
+      @ SlaErrors::InvalidPubkey
+  )]
+  pub scanner_mint: Account<'info, anchor_spl::token::Mint>,
+
+  #[account(
+    mut,
+    associated_token::mint = scanner_mint,
+    associated_token::authority = user,
+  )]
+  pub scanner_ata: Account<'info, anchor_spl::token::TokenAccount>,
+
+  #[account(mut)]
+  pub user: Signer<'info>,
+
+  #[account(
+    mut,
+    constraint = assert_address(combine_authority.key, sla_constants::COMBINE_AUTHORITY_WALLET)
+  )]
+  pub combine_authority: Signer<'info>,
+
+  #[account(address = anchor_spl::token::ID)]
+  pub token_program: AccountInfo<'info>,
+
+  #[account(address = mpl_token_metadata::ID)]
+  pub metadata_program: AccountInfo<'info>,
+
+  pub system_program: Program<'info, System>,
+}
+
+
 #[derive(Accounts)]
 #[instruction(
-  ranking_bump: u8,
+  ranking_v1_bump: u8,
+  ranking_v2_bump: u8,
   asset_id: u8,
 )]
-pub struct MergeBadge<'info> {  
+pub struct MergeBadgeV2<'info> {  
   pub avatar_mint: Box<Account<'info, anchor_spl::token::Mint>>,
 
   #[account(
@@ -537,11 +745,20 @@ pub struct MergeBadge<'info> {
   #[account(
     init_if_needed,
     seeds = [sla_constants::PREFIX_RANKING.as_bytes(), &avatar_mint.key().to_bytes()],
-    bump = ranking_bump,
+    bump = ranking_v1_bump,
     payer = payer, 
     space = sla_accounts::Ranking::LEN,
   )]
-  pub ranking: Box<Account<'info, sla_accounts::Ranking>>,
+  pub ranking_v1: Box<Account<'info, sla_accounts::Ranking>>,
+
+  #[account(
+    init_if_needed,
+    seeds = [sla_constants::PREFIX_RANKING_V2.as_bytes(), &avatar_mint.key().to_bytes()],
+    bump = ranking_v2_bump,
+    payer = payer, 
+    space = sla_accounts::RankingV2::LEN,
+  )]
+  pub ranking_v2: Box<Account<'info, sla_accounts::RankingV2>>,
 
   #[account(
     mut,
@@ -558,22 +775,45 @@ pub struct MergeBadge<'info> {
   pub system_program: Program<'info, System>,
 }
 
-// #[derive(Accounts)]
-// #[instruction(badge_supply_counter_bump: u8)]
-// pub struct InitBadgeSupplyCounter<'info> {
-//   #[account(
-//     init_if_needed,
-//     seeds = [sla_constants::PREFIX_BADGE_POT.as_bytes()],
-//     bump = badge_supply_counter_bump,
-//     payer = authority,
-//     space = sla_accounts::BadgeSupplyCounter::LEN,
-//   )]
-//   pub badge_supply_counter: Account<'info, sla_accounts::BadgeSupplyCounter>,
 
-//   #[account(
-//     constraint = assert_address(authority.key, sla_constants::COMBINE_AUTHORITY_WALLET)
-//   )]
-//   pub authority: Signer<'info>,
+#[derive(Accounts)]
+#[instruction(
+  ranking_v1_bump: u8,
+  ranking_v2_bump: u8,
+  asset_id: u8,
+)]
+pub struct AddBadge<'info> {  
+  pub avatar_mint: Box<Account<'info, anchor_spl::token::Mint>>,
 
-//   pub system_program: Program<'info, System>,
-// }
+  #[account(
+    init_if_needed,
+    seeds = [sla_constants::PREFIX_RANKING.as_bytes(), &avatar_mint.key().to_bytes()],
+    bump = ranking_v1_bump,
+    payer = combine_authority, 
+    space = sla_accounts::Ranking::LEN,
+  )]
+  pub ranking_v1: Box<Account<'info, sla_accounts::Ranking>>,
+
+  #[account(
+    init_if_needed,
+    seeds = [sla_constants::PREFIX_RANKING_V2.as_bytes(), &avatar_mint.key().to_bytes()],
+    bump = ranking_v2_bump,
+    payer = combine_authority, 
+    space = sla_accounts::RankingV2::LEN,
+  )]
+  pub ranking_v2: Box<Account<'info, sla_accounts::RankingV2>>,
+
+  #[account(
+    mut,
+    constraint = assert_address(combine_authority.key, sla_constants::COMBINE_AUTHORITY_WALLET)
+  )]
+  pub combine_authority: Signer<'info>,
+
+  #[account(address = anchor_spl::token::ID)]
+  pub token_program: AccountInfo<'info>,
+
+  #[account(address = mpl_token_metadata::ID)]
+  pub metadata_program: AccountInfo<'info>,
+
+  pub system_program: Program<'info, System>,
+}

@@ -3,7 +3,9 @@
 pub const PREFIX_LLAMA: &str = "sla_llama";
 pub const PREFIX_TREASURY: &str = "sla_treasury";
 pub const PREFIX_RANKING: &str = "sla_ranking";
+pub const PREFIX_RANKING_V2: &str = "sla_ranking_v2";
 pub const PREFIX_BADGE_POT: &str = "sla_badge_pot";
+pub const PREFIX_SCANNER: &str = "sla_scanner";
 
 // PRICES (in $HAY)
 pub const PRICE_ID_CARD: u16 = 60;
@@ -34,6 +36,10 @@ pub const BADGE_SILVER_MINT: &str = "HVXkw7SaH3i1KKhisgVfE8meUpdawyo6BtjX1YvRCEH
 pub const BADGE_GOLD_MINT: &str = "6MsxoFAhvfL4DcYniQ4FoMdhaRATgzkG1XwyNdLKeMc2";
 pub const BADGE_PLATINUM_MINT: &str = "HZktv6wRgAaLJSoGsXcEhZbJaH6CsmFnuXLbZ93h8LZt";
 pub const BADGE_DIAMOND_MINT: &str = "gQrMXw5EpWVmiikvapTxcHGuaDH3NYbTJwC9voyqfFG";
+
+// SCANNER
+pub const SCANNER_MINT: &str = "D2RDTgj4HPKq6k6Fqz9cQBHbLv7NHT6gQEtuH3kfNC3m";
+pub const PRICE_SCANNER: u16 = 10;
 
 // HARD-CODED COLLECTION KEYS
 pub const LLAMA_COLLECTION: &str = "GqxAoZaqww9zp6y5RddRhExrwTVySfAjLnheaJVjSvag";

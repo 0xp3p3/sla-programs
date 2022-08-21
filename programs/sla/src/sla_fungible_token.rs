@@ -122,3 +122,33 @@ pub fn mint_fungible_asset<'info>(
   
   Ok(())
 }
+
+
+pub fn mint_scanner<'info>(
+  mint: AccountInfo<'info>,
+  ata: AccountInfo<'info>,
+  user: AccountInfo<'info>,
+  treasury: AccountInfo<'info>,
+  hay_user_ata: AccountInfo<'info>,
+  hay_treasury_ata: AccountInfo<'info>,
+  token_program: AccountInfo<'info>,
+  treasury_bump: u8,
+) -> ProgramResult {
+
+  let signer_seeds = &[&[sla_constants::PREFIX_TREASURY.as_bytes(), bytemuck::bytes_of(&treasury_bump)][..]];
+  let price = sla_constants::PRICE_SCANNER;
+
+  msg!("Minting a new Scanner");
+  sla_token::mint_tokens(mint, ata, treasury, token_program.clone(), Some(signer_seeds), 1)?;
+
+  msg!("Transferring {} $HAY to treasury", price);
+  sla_token::transfer_tokens(
+    hay_user_ata, 
+    hay_treasury_ata, 
+    user,
+    token_program, 
+    u64::from(price),
+  )?;
+  
+  Ok(())
+}

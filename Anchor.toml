@@ -1,6 +1,6 @@
 [provider]
 cluster = "mainnet"
-wallet = "/Users/robin/dev/personal/solana/SLA/sla-config/.sol-wallets/program-authority.json"
+wallet = ""
 
 [programs.localnet]
 sla = "GUSxqUfUdqchfErA3DrW1jNVJKGdMpxt71AeDkJJtG5R"
