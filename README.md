@@ -3,6 +3,7 @@
 This repository holds the Secret Llama Agency smart contract (Solana program).
 
 The address of the program is: **GUSxqUfUdqchfErA3DrW1jNVJKGdMpxt71AeDkJJtG5R**.
+
 The wallet currently owning the program is: **X1d8FSWgsM3QRjqLu9XboBRF2gSk3w6kP3tKGifWvxL**.
 
 
