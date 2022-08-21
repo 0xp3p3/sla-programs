@@ -20,3 +20,5 @@ Once that is done, the on-chain program can be updated by running the script
 ```
 ./scripts/upgrade.sh
 ```
+
+**NOTE**: this command is likely to fail a few times before succeeding. This is often due to Solana being congested. 
